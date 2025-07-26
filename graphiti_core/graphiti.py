@@ -30,6 +30,7 @@ from graphiti_core.edges import EntityEdge, EpisodicEdge
 from graphiti_core.embedder import EmbedderClient, OpenAIEmbedder
 from graphiti_core.graphiti_types import GraphitiClients
 from graphiti_core.helpers import (
+    get_default_group_id,
     semaphore_gather,
     validate_excluded_entity_types,
     validate_group_id,
@@ -112,7 +113,7 @@ class Graphiti:
         """
         Initialize a Graphiti instance.
 
-        This constructor sets up a connection to the Neo4j database and initializes
+        This constructor sets up a connection to a graph database and initializes
         the LLM client for natural language processing tasks.
 
         Parameters
@@ -147,11 +148,11 @@ class Graphiti:
 
         Notes
         -----
-        This method establishes a connection to the Neo4j database using the provided
+        This method establishes a connection to a graph database (Neo4j by default) using the provided
         credentials. It also sets up the LLM client, either using the provided client
         or by creating a default OpenAIClient.
 
-        The default database name is set to 'neo4j'. If a different database name
+        The default database name is defined during the driver’s construction. If a different database name
         is required, it should be specified in the URI or set separately after
         initialization.
 
@@ -352,7 +353,7 @@ class Graphiti:
         source_description: str,
         reference_time: datetime,
         source: EpisodeType = EpisodeType.message,
-        group_id: str = '',
+        group_id: str | None = None,
         uuid: str | None = None,
         update_communities: bool = False,
         entity_types: dict[str, BaseModel] | None = None,
@@ -420,7 +421,10 @@ class Graphiti:
             start = time()
             now = utc_now()
 
+            # if group_id is None, use the default group id by the provider
+            group_id = group_id or get_default_group_id(self.driver.provider)
             validate_entity_types(entity_types)
+
             validate_excluded_entity_types(excluded_entity_types, entity_types)
             validate_group_id(group_id)
 
@@ -537,7 +541,7 @@ class Graphiti:
     async def add_episode_bulk(
         self,
         bulk_episodes: list[RawEpisode],
-        group_id: str = '',
+        group_id: str | None = None,
         entity_types: dict[str, BaseModel] | None = None,
         excluded_entity_types: list[str] | None = None,
         edge_types: dict[str, BaseModel] | None = None,
@@ -583,6 +587,8 @@ class Graphiti:
             start = time()
             now = utc_now()
 
+            # if group_id is None, use the default group id by the provider
+            group_id = group_id or get_default_group_id(self.driver.provider)
             validate_group_id(group_id)
 
             # Create default edge type map
@@ -953,7 +959,7 @@ class Graphiti:
 
         nodes = await get_mentioned_nodes(self.driver, episodes)
 
-        return SearchResults(edges=edges, nodes=nodes, episodes=[], communities=[])
+        return SearchResults(edges=edges, nodes=nodes)
 
     async def add_triplet(self, source_node: EntityNode, edge: EntityEdge, target_node: EntityNode):
         if source_node.name_embedding is None:
